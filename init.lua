@@ -84,6 +84,8 @@ I hope you enjoy your Neovim journey,
 P.S. You can delete this when you're done too. It's your config now! :)
 --]]
 
+---@diagnostic disable: undefined-global
+
 -- Set <space> as the leader key
 -- See `:help mapleader`
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
@@ -91,7 +93,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
@@ -153,8 +155,47 @@ vim.opt.inccommand = 'split'
 -- Show which line your cursor is on
 vim.opt.cursorline = true
 
+-- views can only be fully collapsed with the global statusline
+vim.opt.laststatus = 3
+
 -- Minimal number of screen lines to keep above and below the cursor.
-vim.opt.scrolloff = 10
+vim.opt.scrolloff = 5
+
+vim.opt.foldmethod = 'indent'
+vim.opt.foldlevel = 99
+
+vim.opt.swapfile = false
+
+-- Global indentation settings
+vim.opt.expandtab = true
+vim.opt.tabstop = 4
+vim.opt.softtabstop = 4
+vim.opt.shiftwidth = 4
+vim.opt.smartindent = true
+
+-- -- Set *.yml shiftwidth to 2
+-- vim.api.nvim_create_autocmd({ 'BufNewFile', 'BufRead' }, {
+--   pattern = '*.yml',
+--   callback = function()
+--     vim.bo.shiftwidth = 2
+--   end,
+-- })
+
+-- Configure diagnostics to include sources
+vim.diagnostic.config {
+  float = {
+    source = true,
+  },
+  virtual_text = {
+    source = true,
+    -- Show error codes in virtual text
+    format = function(diagnostic)
+      -- Prepend the error code to the message
+      return string.format('%s: %s', diagnostic.code, diagnostic.message)
+    end,
+  },
+  severity_sort = true,
+}
 
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
@@ -165,6 +206,23 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+
+-- Show diagnostic source
+vim.keymap.set('n', '<leader>dl', function()
+  local line = vim.fn.line '.' - 1
+  local diagnostics = vim.diagnostic.get(0, { lnum = line })
+  if #diagnostics == 0 then
+    vim.notify('No diagnostics found', vim.log.levels.INFO)
+    return
+  end
+  local messages = {}
+  for _, d in ipairs(diagnostics) do
+    local source = d.source or 'unknown'
+    local msg = string.format('%s: %s', source, d.message)
+    table.insert(messages, msg)
+  end
+  vim.notify(table.concat(messages, '\n'), vim.log.levels.INFO)
+end, { desc = 'Show [D]iagnostic [L]ine Sources' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -189,6 +247,10 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+vim.keymap.set('n', '<leader>tt', '<cmd>tabnew|Startify<CR>', { desc = 'Open a new tab with Startify' })
+vim.keymap.set('n', '<C-h>', '<cmd>tabprevious<CR>', { desc = 'Move to previous tab' })
+vim.keymap.set('n', '<C-l>', '<cmd>tabnext<CR>', { desc = 'Move to next tab' })
+
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
@@ -200,6 +262,16 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
   callback = function()
     vim.highlight.on_yank()
+  end,
+})
+
+vim.api.nvim_create_autocmd('BufReadPost', {
+  callback = function()
+    local mark = vim.api.nvim_buf_get_mark(0, '"')
+    local lcount = vim.api.nvim_buf_line_count(0)
+    if mark[1] > 0 and mark[1] <= lcount then
+      pcall(vim.api.nvim_win_set_cursor, 0, mark)
+    end
   end,
 })
 
@@ -229,6 +301,150 @@ vim.opt.rtp:prepend(lazypath)
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
+  'tpope/vim-fugitive', -- Git commands in nvim
+
+  'powerman/vim-plugin-AnsiEsc', -- Convert ANSI color codes to Vim syntax highlighting
+
+  {
+    'supermaven-inc/supermaven-nvim',
+    config = function()
+      require('supermaven-nvim').setup({
+        keymaps = {
+          accept_suggestion = '<Tab>',
+          clear_suggestion = '<C-]>',
+          accept_word = '<C-j>',
+        },
+      })
+    end,
+  },
+
+  { -- Cursor Agent integration
+    'xTacobaco/cursor-agent.nvim',
+    config = function()
+      -- Cursor Agent keymaps
+      vim.keymap.set('n', '<leader>ct', ':CursorAgent<CR>',          { desc = 'Cursor Agent: Toggle terminal' })
+      vim.keymap.set('v', '<leader>cs', ':CursorAgentSelection<CR>', { desc = 'Cursor Agent: Send selection' })
+      vim.keymap.set('n', '<leader>cb', ':CursorAgentBuffer<CR>',    { desc = 'Cursor Agent: Send buffer' })
+    end,
+  },
+
+  { -- Avante.nvim - Cursor-like AI inline suggestions and autocompletion
+    -- 'yetone/avante.nvim',
+  --   build = vim.fn.has 'win32' ~= 0 and 'powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false' or 'make',
+  --   event = 'VeryLazy',
+  --   version = false,
+  --   opts = {
+  --     provider = 'claude',
+  --     auto_suggestions_provider = 'claude',
+  --     behaviour = {
+  --       auto_suggestions = true, -- Enable inline "Tab" style suggestions
+  --       auto_set_highlight_group = true,
+  --       auto_set_keymaps = true,
+  --       auto_apply_diff_after_generation = false,
+  --       support_paste_from_clipboard = false,
+  --     },
+  --   },
+  --   dependencies = {
+  --     'nvim-lua/plenary.nvim',
+  --     'MunifTanjim/nui.nvim',
+  --   },
+  --   config = function()
+  --     require('avante').setup {
+  --       -- Avante will provide inline suggestions automatically
+  --       -- You can configure API provider here if needed
+  --       -- provider = "claude"
+  --     }
+  --
+  --     -- Avante keymaps
+  --     vim.keymap.set('n', '<leader>aa', ':AvanteToggle<CR>', { desc = '[A]vante: Toggle chat' })
+  --     vim.keymap.set('v', '<leader>ae', ':AvanteEdit<CR>',   { desc = '[A]vante: [E]dit selection' })
+  --     vim.keymap.set('n', '<leader>ac', ':AvanteChat<CR>',   { desc = '[A]vante: [C]hat' })
+  --   end,
+  },
+
+  {
+    'mhinz/vim-startify', -- Fancy start screen for Neovim
+    config = function()
+      --[[
+      -- Custom header
+      vim.g.startify_custom_header = {
+        -- Garfield ASCII art
+        '   ⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠞⠉⢉⣭⣿⣿⠿⣳⣤⠴⠖⠛⣛⣿⣿⡷⠖⣶⣤⡀⠀⠀⠀   ',
+        '    ⠀⠀⠀⠀⠀⠀⠀⣼⠁⢀⣶⢻⡟⠿⠋⣴⠿⢻⣧⡴⠟⠋⠿⠛⠠⠾⢛⣵⣿⠀⠀⠀⠀  ',
+        '    ⣼⣿⡿⢶⣄⠀⢀⡇⢀⡿⠁⠈⠀⠀⣀⣉⣀⠘⣿⠀⠀⣀⣀⠀⠀⠀⠛⡹⠋⠀⠀⠀⠀  ',
+        '    ⣭⣤⡈⢑⣼⣻⣿⣧⡌⠁⠀⢀⣴⠟⠋⠉⠉⠛⣿⣴⠟⠋⠙⠻⣦⡰⣞⠁⢀⣤⣦⣤⠀  ',
+        '    ⠀⠀⣰⢫⣾⠋⣽⠟⠑⠛⢠⡟⠁⠀⠀⠀⠀⠀⠀⢻⡄⠀⠀⠀⠘⣷⡈⠻⣍⠤⢤⣌⣀  ',
+        '    ⢀⡞⣡⡌⠁⠀⠀⠀⠀⢀⣿⠁⠀⠀⠀⠀⠀⠀⠀⠀⢿⡀⠀⠀⠀⠸⣇⠀⢾⣷⢤⣬⣉  ',
+        '    ⡞⣼⣿⣤⣄⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⣿⠀⠸⣿⣇⠈⠻  ',
+        '    ⢰⣿⡿⢹⠃⠀⣠⠤⠶⣼⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⣿⠀⠀⣿⠛⡄⠀  ',
+        '    ⠈⠉⠁⠀⠀⠀⡟⡀⠀⠈⡗⠲⠶⠦⢤⣤⣤⣄⣀⣀⣸⣧⣤⣤⠤⠤⣿⣀⡀⠉⣼⡇⠀  ',
+        '    ⣿⣴⣴⡆⠀⠀⠻⣄⠀⠀⠡⠀⠀⠀⠈⠛⠋⠀⠀⠀⡈⠀⠻⠟⠀⢀⠋⠉⠙⢷⡿⡇⠀  ',
+        '    ⣻⡿⠏⠁⠀⠀⢠⡟⠀⠀⠀⠣⡀⠀⠀⠀⠀⠀⢀⣄⠀⠀⠀⠀⢀⠈⠀⢀⣀⡾⣴⠃⠀  ',
+        '    ⢿⠛⠀⠀⠀⠀⢸⠁⠀⠀⠀⠀⠈⠢⠄⣀⠠⠼⣁⠀⡱⠤⠤⠐⠁⠀⠀⣸⠋⢻⡟⠀⠀  ',
+        '    ⠈⢧⣀⣤⣶⡄⠘⣆⠀⠀⠀⠀⠀⠀⠀⢀⣤⠖⠛⠻⣄⠀⠀⠀⢀⣠⡾⠋⢀⡞⠀⠀⠀  ',
+        '    ⠀⠀⠻⣿⣿⡇⠀⠈⠓⢦⣤⣤⣤⡤⠞⠉⠀⠀⠀⠀⠈⠛⠒⠚⢩⡅⣠⡴⠋⠀⠀⠀⠀  ',
+        '    ⠀⠀⠀⠈⠻⢧⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⣻⠿⠋⠀⠀⠀⠀⠀⠀  ',
+      }
+      --]]
+
+      -- Custom startify sections
+      vim.g.startify_lists = {
+        { type = 'files', header = { '   Recent Files' } },
+        { type = 'dir', header = { '   Current Directory: ' .. vim.fn.getcwd() } },
+        { type = 'sessions', header = { '   Sessions' } },
+        { type = 'bookmarks', header = { '   Bookmarks' } },
+        { type = 'commands', header = { '   Commands' } },
+      }
+
+      -- Custom bookmarks
+      vim.g.startify_bookmarks = {
+        -- In load order
+        { zp = '~/.zprofile' },
+        { zr = '~/.zshrc' },
+        { bp = '~/.bash_profile' },
+        { br = '~/.bashrc' },
+        { ba = '~/.bash_aliases' },
+        -- other bookmarks
+        { il = '~/.config/nvim/init.lua' },
+        -- { iv = '~/.config/nvim/init.vim' },
+        -- { v = '~/.vimrc' },
+        -- { vv = '~/.config/nvim/vimrc.vim' },
+        -- { c = '~/.config/nvim/coc-settings.json' },
+        -- python
+        { sp = './.venv/python-3.12/lib/python3.12/site-packages' },
+        { pt = './pyproject.toml' },
+        { env = './.envrc' },
+        { pyright = './pyrightconfig.json' },
+        { x = '~/optim/x' },
+      }
+
+      -- Other settings
+      vim.g.startify_session_autoload = 1 -- Automatically load session if one exists
+      vim.g.startify_session_delete_buffers = 1 -- Delete all buffers when loading/creating session
+      vim.g.startify_change_to_vcs_root = 1 -- Change to project root when opening file
+      vim.g.startify_fortune_use_unicode = 1 -- Use Unicode for fortune messages
+      vim.g.startify_padding_left = 3 -- Add padding on the left
+      vim.g.startify_session_persistence = 1 -- Automatically update sessions
+      vim.g.startify_enable_special = 1 -- Disable special empty buffer
+      vim.g.startify_session_dir = '~/.config/nvim/session' -- Directory to store sessions
+
+      -- vim.g.startify_change_to_dir = 0
+      vim.g.startify_custom_indices = vim.fn.map(vim.fn.range(1, 100), 'string(v:val)') -- start numbering from 1 instead of 0
+      -- vim.g.startify_custom_header = 'startify#pad(startify#fortune#boxed())'
+
+      -- Open startify on new tab
+      vim.g.startify_new_tab = 1
+
+      vim.g.startify_commands = {
+        { ch = { 'Health Check', ':checkhealth' } },
+        { ps = { 'Plugin Sync', ':Lazy sync' } },
+      }
+    end,
+  },
+
+  'godlygeek/tabular', -- Align text easily with :Tab
+
+  'Vimjas/vim-python-pep8-indent', -- Python indentation plugin
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -326,6 +542,16 @@ require('lazy').setup({
     },
   },
 
+  -- Add fzf.vim for faster searching
+  {
+    'junegunn/fzf.vim',
+    dependencies = { 'junegunn/fzf' },
+    config = function()
+      vim.keymap.set('n', '<leader>sa', ':Ag!<CR>', { desc = '[S]earch with [A]g' })
+      vim.g.fzf_preview_window = { 'up', 'ctrl-p' }
+    end,
+  },
+
   -- NOTE: Plugins can specify dependencies.
   --
   -- The dependencies are proper plugin specifications as well - anything
@@ -336,7 +562,7 @@ require('lazy').setup({
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
     event = 'VimEnter',
-    branch = '0.1.x',
+    branch = 'master',
     dependencies = {
       'nvim-lua/plenary.nvim',
       { -- If encountering errors, see telescope-fzf-native README for installation instructions
@@ -404,10 +630,85 @@ require('lazy').setup({
       local builtin = require 'telescope.builtin'
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-      vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
+      vim.keymap.set('n', '<leader>sf', function()
+        builtin.find_files {
+          hidden = true,
+          find_command = { 'git', 'ls-files', '--exclude-standard' },
+        }
+      end, { desc = '[S]earch [F]iles (Git Files)' })
+      vim.keymap.set('n', '<leader>sF', builtin.find_files, { desc = '[S]earch [F]iles' })
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
       vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
+      -- Fuzzy search across all file contents
+      vim.keymap.set('n', '<leader>sG', function()
+        builtin.grep_string {
+          prompt_title = 'Fuzzy Grep (Git Files)',
+          search = '',
+          word_match = '-w',
+          only_sort_text = true,
+          use_regex = false,
+          vimgrep_arguments = {
+            'rg',
+            '--color=never',
+            '--no-heading',
+            '--with-filename',
+            '--line-number',
+            '--column',
+            '--smart-case',
+            '--trim', -- Remove unnecessary whitespace
+            '-g',
+            '!.git/*', -- Exclude .git directory
+            '-g',
+            '!*.json', -- JSON files
+            '-g',
+            '!*.lock', -- Lock files
+            '-g',
+            '!*.min.js', -- Minified JavaScript
+            '-g',
+            '!*.pyc', -- Python bytecode
+            '-g',
+            '!.venv*/*', -- Python virtual environments
+            '-g',
+            '!build/*', -- Build directories
+            '-g',
+            '!dist/*', -- Distribution directories
+            '-g',
+            '!ignore/*', -- Ignore directories
+            '-g',
+            '!node_modules/*', -- Node modules
+            '-g',
+            '!vendor/*', -- Vendor directories
+          },
+        }
+      end, { desc = '[S]earch by [G]rep (Fuzzy)' })
+
+      -- Fuzzy search only in git-tracked files
+      vim.keymap.set('n', '<leader>st', function()
+        builtin.grep_string {
+          prompt_title = 'Fuzzy Grep (Git Tracked)',
+          search = '',
+          word_match = '-w',
+          only_sort_text = true,
+          use_regex = false,
+          search_dirs = vim.fn.systemlist 'git ls-files',
+        }
+      end, { desc = '[S]earch by Grep in git [T]racked files' })
+
+      -- -- Search with Ag
+      -- vim.keymap.set('n', '<leader>sa', function()
+      --   require('telescope.builtin').grep_string({
+      --     prompt_title = 'Ag Search',
+      --     search = '',
+      --     use_regex = false,
+      --     grep_open_files = false,
+      --     grep_cmd_opts = {
+      --       cmd = 'ag',
+      --       args = { '--vimgrep', '--smart-case', '--ignore-dir=.git', '--respect-gitignore' },
+      --     },
+      --   })
+      -- end, { desc = '[S]earch with [A]g' })
+
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
@@ -554,7 +855,7 @@ require('lazy').setup({
           --
           -- When you move your cursor, the highlights will be cleared (the second autocommand).
           local client = vim.lsp.get_client_by_id(event.data.client_id)
-          if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
+          if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
             local highlight_augroup = vim.api.nvim_create_augroup('kickstart-lsp-highlight', { clear = false })
             vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
               buffer = event.buf,
@@ -581,7 +882,7 @@ require('lazy').setup({
           -- code, if the language server you are using supports them
           --
           -- This may be unwanted, since they displace some of your code
-          if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
+          if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
             map('<leader>th', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
             end, '[T]oggle Inlay [H]ints')
@@ -590,14 +891,14 @@ require('lazy').setup({
       })
 
       -- Change diagnostic symbols in the sign column (gutter)
-      -- if vim.g.have_nerd_font then
-      --   local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
-      --   local diagnostic_signs = {}
-      --   for type, icon in pairs(signs) do
-      --     diagnostic_signs[vim.diagnostic.severity[type]] = icon
-      --   end
-      --   vim.diagnostic.config { signs = { text = diagnostic_signs } }
-      -- end
+      if vim.g.have_nerd_font then
+        local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
+        local diagnostic_signs = {}
+        for type, icon in pairs(signs) do
+          diagnostic_signs[vim.diagnostic.severity[type]] = icon
+        end
+        vim.diagnostic.config { signs = { text = diagnostic_signs } }
+      end
 
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
@@ -616,17 +917,34 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
-        -- gopls = {},
-        -- pyright = {},
-        -- rust_analyzer = {},
+        bashls = {},
+        clangd = {},
+        css_variables = {},
+        cssls = {},
+        docker_compose_language_service = {},
+        dockerls = {},
+        -- eslint = {},
+        gopls = {},
+        html = {},
+        jsonls = {},
+        marksman = {},
+        mypy = {},
+        nextls = {},
+        nginx_language_server = {},
+        pyright = {},
+        rust_analyzer = {},
+        terraformls = {},
+        tflint = {},
+        ts_ls = {},
+        -- ty = {},
+        vimls = {},
+        yamlls = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
         -- Some languages (like typescript) have entire language plugins that can be useful:
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
         --
 
         lua_ls = {
@@ -657,7 +975,11 @@ require('lazy').setup({
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'stylua', -- Used to format Lua code
+        -- 'stylua', -- Used to format Lua code
+        'mypy', -- Python type checker
+        'ruff', -- Python linter/formatter
+        'pylint', -- Python linter
+        -- 'ty', -- Python type checker
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -691,8 +1013,29 @@ require('lazy').setup({
       },
     },
     opts = {
-      notify_on_error = false,
+
+      -- DEBUGGING
+      --log_level = vim.log.levels.INFO,
+      --formatters = {
+      --  isort = {
+      --    -- This will print the command being executed to the log
+      --    command = function()
+      --      local cmd = vim.fn.exepath 'isort'
+      --      -- Log the path that was found (or lack thereof)
+      --      vim.notify('isort path: ' .. (cmd or 'not found in PATH'), vim.log.levels.INFO)
+      --      return cmd or 'isort'
+      --    end,
+      --  },
+      --},
+
+      notify_on_error = false, -- Disable error notifications
       format_on_save = function(bufnr)
+        -- Disable formatting for init.lua to preserve whitespace
+        local filename = vim.api.nvim_buf_get_name(bufnr)
+        if filename:match 'init%.lua$' then
+          return false
+        end
+
         -- Disable "format_on_save lsp_fallback" for languages that don't
         -- have a well standardized coding style. You can add additional
         -- languages here or re-enable it for the disabled ones.
@@ -704,17 +1047,25 @@ require('lazy').setup({
           lsp_format_opt = 'fallback'
         end
         return {
-          timeout_ms = 500,
+          timeout_ms = 2000,
           lsp_format = lsp_format_opt,
         }
       end,
       formatters_by_ft = {
-        lua = { 'stylua' },
+        lua = { 'lua_lsp' },
         -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
-        --
+        python = { 'isort', 'black' },
         -- You can use 'stop_after_first' to run the first available formatter from the list
-        -- javascript = { "prettierd", "prettier", stop_after_first = true },
+        javascript = { 'prettierd', 'prettier', stop_after_first = true },
+        javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        json = { 'prettierd', 'prettier', stop_after_first = true },
+        rust = { 'rustfmt' },
+        sh = { 'shellcheck' },
+        terraform = { 'terraform_fmt' },
+        toml = { 'taplo' },
+        typescript = { 'prettierd', 'prettier', stop_after_first = true },
+        typescriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        ['_'] = { 'prettier' }, -- Default formatter
       },
     },
   },
@@ -790,7 +1141,7 @@ require('lazy').setup({
 
           -- If you prefer more traditional completion keymaps,
           -- you can uncomment the following lines
-          --['<CR>'] = cmp.mapping.confirm { select = true },
+          ['<CR>'] = cmp.mapping.confirm { select = true },
           --['<Tab>'] = cmp.mapping.select_next_item(),
           --['<S-Tab>'] = cmp.mapping.select_prev_item(),
 
@@ -846,7 +1197,13 @@ require('lazy').setup({
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      --vim.cmd.colorscheme 'tokyonight-night'
+      vim.cmd.colorscheme 'wildcharm'
+
+      -- Themes I like:
+      -- - zaibatsu
+      -- - sorbet
+      -- - wildcharm
 
       -- You can configure highlights by doing something like:
       vim.cmd.hi 'Comment gui=none'
@@ -867,12 +1224,12 @@ require('lazy').setup({
       --  - ci'  - [C]hange [I]nside [']quote
       require('mini.ai').setup { n_lines = 500 }
 
-      -- Add/delete/replace surroundings (brackets, quotes, etc.)
-      --
-      -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
-      -- - sd'   - [S]urround [D]elete [']quotes
-      -- - sr)'  - [S]urround [R]eplace [)] [']
-      require('mini.surround').setup()
+      -- -- Add/delete/replace surroundings (brackets, quotes, etc.)
+      -- --
+      -- -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
+      -- -- - sd'   - [S]urround [D]elete [']quotes
+      -- -- - sr)'  - [S]urround [R]eplace [)] [']
+      -- require('mini.surround').setup()
 
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
@@ -909,7 +1266,7 @@ require('lazy').setup({
         --  the list of additional_vim_regex_highlighting and disabled languages for indent.
         additional_vim_regex_highlighting = { 'ruby' },
       },
-      indent = { enable = true, disable = { 'ruby' } },
+      indent = { enable = true, disable = { 'ruby', 'python' } },
     },
     -- There are additional nvim-treesitter modules that you can use to interact
     -- with nvim-treesitter. You should go explore a few and see what interests you:
@@ -928,12 +1285,12 @@ require('lazy').setup({
   --  Here are some example plugins that I've included in the Kickstart repository.
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
-  -- require 'kickstart.plugins.debug',
-  -- require 'kickstart.plugins.indent_line',
-  -- require 'kickstart.plugins.lint',
+  require 'kickstart.plugins.debug',
+  require 'kickstart.plugins.indent_line',
+  require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.

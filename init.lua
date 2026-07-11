@@ -181,6 +181,18 @@ vim.opt.smartindent = true
 --   end,
 -- })
 
+-- VS Code-family config files are JSONC (comments allowed), not strict JSON
+vim.filetype.add {
+  filename = {
+    ['keybindings.json'] = 'jsonc',
+    ['settings.json'] = 'jsonc',
+    ['launch.json'] = 'jsonc',
+    ['tasks.json'] = 'jsonc',
+    ['tsconfig.json'] = 'jsonc',
+    ['jsconfig.json'] = 'jsonc',
+  },
+}
+
 -- Configure diagnostics to include sources
 vim.diagnostic.config {
   float = {
@@ -223,6 +235,13 @@ vim.keymap.set('n', '<leader>dl', function()
   end
   vim.notify(table.concat(messages, '\n'), vim.log.levels.INFO)
 end, { desc = 'Show [D]iagnostic [L]ine Sources' })
+
+-- Copy full file path to clipboard
+vim.keymap.set('n', '<leader>cp', function()
+  local path = vim.fn.expand '%:p'
+  vim.fn.setreg('+', path)
+  vim.notify('Copied: ' .. path)
+end, { desc = '[C]opy file [P]ath' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which

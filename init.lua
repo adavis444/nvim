@@ -404,12 +404,6 @@ require('lazy').setup({
     config = function()
       -- [[ Configure Telescope ]]
 
-      -- Neutralize vim.treesitter.start so any caller (e.g. telescope's preview
-      -- ts_highlighter, built-in ftplugins) no-ops instead of attaching the
-      -- highlighter. Avoids parser errors seen in Neovim 0.12.1. Telescope
-      -- previews fall back to :syntax via preview.treesitter = false below.
-      vim.treesitter.start = function() end
-
       -- See `:help telescope` and `:help telescope.setup()`
       require('telescope').setup {
         -- You can put your default mappings / updates / etc. in here
@@ -421,10 +415,6 @@ require('lazy').setup({
         --   },
         -- },
         -- pickers = {}
-        defaults = {
-          -- Use vim regex syntax highlighting in previews instead of treesitter
-          preview = { treesitter = false },
-        },
         extensions = {
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
@@ -726,6 +716,10 @@ require('lazy').setup({
               completion = {
                 callSnippet = 'Replace',
               },
+              diagnostics = {
+                -- Recognize the `vim` global in any Lua file (lazydev only covers this config)
+                globals = { 'vim' },
+              },
               -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
               -- diagnostics = { disable = { 'missing-fields' } },
             },
@@ -1014,9 +1008,7 @@ require('lazy').setup({
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
-        -- Treesitter highlighting is disabled globally (using Vim's built-in syntax highlighting instead)
-        -- to avoid parser errors in Neovim 0.12.1
-        enable = false,
+        enable = true,
         -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
         --  If you are experiencing weird indenting issues, add the language to
         --  the list of additional_vim_regex_highlighting and disabled languages for indent.

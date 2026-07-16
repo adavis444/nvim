@@ -9,6 +9,14 @@ return {
         markdown = { 'markdownlint' },
       }
 
+      -- Apply a global markdownlint config (e.g. MD013 line-length disabled)
+      -- so rules are consistent regardless of per-project config files.
+      lint.linters.markdownlint.args = {
+        '--config',
+        vim.fn.expand '~/.config/markdownlint/config.jsonc',
+        '--stdin',
+      }
+
       -- To allow other plugins to add linters to require('lint').linters_by_ft,
       -- instead set linters_by_ft like this:
       -- lint.linters_by_ft = lint.linters_by_ft or {}

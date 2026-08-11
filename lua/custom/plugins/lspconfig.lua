@@ -155,9 +155,11 @@ return {
       rust_analyzer = {},
       terraformls = {},
       tflint = {},
-      ts_ls = {},
       -- ty = {},
       vimls = {},
+      -- vtsls over ts_ls: it pins its own TypeScript instead of resolving a
+      -- floating peer dep, which Mason now resolves to tsserver-less TS 7.
+      vtsls = {},
       yamlls = {},
       -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
 

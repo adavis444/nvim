@@ -42,15 +42,24 @@ return {
       -- Conform can also run multiple formatters sequentially
       python = { 'isort', 'black' },
       -- You can use 'stop_after_first' to run the first available formatter from the list
-      javascript = { 'prettierd', 'prettier', stop_after_first = true },
-      javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
-      json = { 'prettierd', 'prettier', stop_after_first = true },
+      -- oxfmt resolves from the project's node_modules, so repos that use it
+      -- (e.g. ~/analytics) get their .oxfmtrc.json; others fall back to prettier.
+      javascript = { 'oxfmt', 'prettierd', 'prettier', stop_after_first = true },
+      javascriptreact = { 'oxfmt', 'prettierd', 'prettier', stop_after_first = true },
+      json = { 'oxfmt', 'prettierd', 'prettier', stop_after_first = true },
+      jsonc = { 'oxfmt', 'prettierd', 'prettier', stop_after_first = true },
+      css = { 'stylelint' },
+      less = { 'stylelint' },
       rust = { 'rustfmt' },
       sh = { 'shellcheck' },
       terraform = { 'terraform_fmt' },
       toml = { 'taplo' },
-      typescript = { 'prettierd', 'prettier', stop_after_first = true },
-      typescriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+      typescript = { 'oxfmt', 'prettierd', 'prettier', stop_after_first = true },
+      typescriptreact = { 'oxfmt', 'prettierd', 'prettier', stop_after_first = true },
+    },
+    formatters = {
+      -- Match the repo's lint-staged invocation
+      oxfmt = { prepend_args = { '--disable-nested-config' } },
     },
   },
 }
